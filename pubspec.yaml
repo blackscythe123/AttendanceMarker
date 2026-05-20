@@ -1,7 +1,7 @@
 name: attendancetaker
-description: "A new Flutter project."
+description: "A robust, offline-first Android application built with Flutter for managing class attendance and timetable"
 publish_to: 'none'
-version: 1.1.1
+version: 1.0.0
 
 environment:
   sdk: ^3.7.2

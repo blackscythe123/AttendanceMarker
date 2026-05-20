@@ -3,9 +3,11 @@ import 'package:intl/intl.dart';
 import '../models/attendance_session.dart';
 import '../repositories/attendance_repository.dart';
 import '../core/timetable_data.dart';
+import '../repositories/timetable_repository.dart';
 
 class AttendanceProvider extends ChangeNotifier {
   final AttendanceRepository _repository = AttendanceRepository();
+  final TimetableRepository _timetableRepo = TimetableRepository();
 
   // Selection Logic
   DateTime _selectedDate = DateTime.now();
@@ -58,14 +60,99 @@ class AttendanceProvider extends ChangeNotifier {
     _checkExistingSession(); // This will notify
   }
 
-  void _updateSubject() {
-    // Only applies if it's the specific class
-    if (_selectedClass == TimetableData.className) {
-      final dayName = DateFormat('EEEE').format(_selectedDate);
-      _currentSubject = TimetableData.getSubject(dayName, _selectedPeriod);
+  Future<void> _updateSubject() async {
+    // 1. Check for overrides in DB
+    final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    final override = await _timetableRepo.getOverride(
+      date: formattedDate,
+      period: _selectedPeriod,
+      className: _selectedClass,
+    );
+
+    if (override != null) {
+      _currentSubject = override;
     } else {
-      _currentSubject = "General Session";
+      // 2. Fallback to static timetable
+      if (_selectedClass == TimetableData.className) {
+        final dayName = DateFormat('EEEE').format(_selectedDate);
+        _currentSubject = TimetableData.getSubject(dayName, _selectedPeriod);
+      } else {
+        _currentSubject = "General Session";
+      }
     }
+    notifyListeners();
+  }
+
+  Future<void> updateCurrentSubject(String newSubject) async {
+    final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    await _timetableRepo.saveOverride(
+      date: formattedDate,
+      period: _selectedPeriod,
+      className: _selectedClass,
+      newSubject: newSubject,
+    );
+    await _updateSubject();
+  }
+
+  Future<String> getSubjectFor(
+    DateTime date,
+    int period,
+    String className,
+  ) async {
+    final formattedDate = DateFormat('yyyy-MM-dd').format(date);
+    final override = await _timetableRepo.getOverride(
+      date: formattedDate,
+      period: period,
+      className: className,
+    );
+    if (override != null) return override;
+
+    if (className == TimetableData.className) {
+      final dayName = DateFormat('EEEE').format(date);
+      return TimetableData.getSubject(dayName, period);
+    }
+    return "General Session";
+  }
+
+  Future<void> performSwap({
+    required DateTime otherDate,
+    required int otherPeriod,
+  }) async {
+    // 1. Get current subject (Source)
+    final sourceSubject = await getSubjectFor(
+      _selectedDate,
+      _selectedPeriod,
+      _selectedClass,
+    );
+
+    // 2. Get target subject
+    final targetSubject = await getSubjectFor(
+      otherDate,
+      otherPeriod,
+      _selectedClass,
+    );
+
+    // 3. Save overrides
+    final sourceDateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    final targetDateStr = DateFormat('yyyy-MM-dd').format(otherDate);
+
+    // Target gets Source's subject
+    await _timetableRepo.saveOverride(
+      date: targetDateStr,
+      period: otherPeriod,
+      className: _selectedClass,
+      newSubject: sourceSubject,
+    );
+
+    // Source gets Target's subject
+    await _timetableRepo.saveOverride(
+      date: sourceDateStr,
+      period: _selectedPeriod,
+      className: _selectedClass,
+      newSubject: targetSubject,
+    );
+
+    await _updateSubject();
   }
 
   Future<void> _checkExistingSession() async {

@@ -14,7 +14,7 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   DateTime _selectedDate = DateTime.now();
-  final AttendanceRepository  = AttendanceRepository();
+  final AttendanceRepository _repo = AttendanceRepository();
   bool _isLoading = false;
   List<AttendanceSession> _sessions = [];
 

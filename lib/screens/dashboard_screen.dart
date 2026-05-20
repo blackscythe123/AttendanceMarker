@@ -159,6 +159,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                   ),
+                  // Edit Button
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    tooltip: "Edit Subject",
+                    onPressed: () => _showEditSubjectDialog(context),
+                  ),
+                  // Swap Button
+                  IconButton(
+                    icon: const Icon(Icons.swap_horiz, color: Colors.orange),
+                    tooltip: "Swap Period",
+                    onPressed: () => _showSwapPeriodDialog(context),
+                  ),
                 ],
               ),
             ),
@@ -215,6 +227,111 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _showEditSubjectDialog(BuildContext context) async {
+    final provider = context.read<AttendanceProvider>();
+    final controller = TextEditingController(text: provider.currentSubject);
+
+    await showDialog(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text("Edit Subject Name"),
+            content: TextField(
+              controller: controller,
+              decoration: const InputDecoration(labelText: "New Subject Name"),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (controller.text.isNotEmpty) {
+                    await provider.updateCurrentSubject(controller.text);
+                    if (mounted) Navigator.pop(ctx);
+                  }
+                },
+                child: const Text("Save"),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _showSwapPeriodDialog(BuildContext context) async {
+    final provider = context.read<AttendanceProvider>();
+    // Default to current date but different period
+    DateTime selectedDate = provider.selectedDate;
+    int selectedPeriod = 1;
+
+    await showDialog(
+      context: context,
+      builder:
+          (ctx) => StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                title: const Text("Swap Period With..."),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      title: Text(
+                        DateFormat('yyyy-MM-dd').format(selectedDate),
+                      ),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2023),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setState(() => selectedDate = picked);
+                        }
+                      },
+                    ),
+                    DropdownButton<int>(
+                      isExpanded: true,
+                      value: selectedPeriod,
+                      items:
+                          List.generate(8, (i) => i + 1)
+                              .map(
+                                (p) => DropdownMenuItem(
+                                  value: p,
+                                  child: Text("Period $p"),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (val) {
+                        if (val != null) setState(() => selectedPeriod = val);
+                      },
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Cancel"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await provider.performSwap(
+                        otherDate: selectedDate,
+                        otherPeriod: selectedPeriod,
+                      );
+                      if (mounted) Navigator.pop(ctx);
+                    },
+                    child: const Text("Swap"),
+                  ),
+                ],
+              );
+            },
+          ),
     );
   }
 }
